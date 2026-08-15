@@ -1,4 +1,6 @@
 #include <iostream>
+#include <optional>
+#include <cmath>
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include<ctime>
@@ -21,6 +23,9 @@ const int gameColumns = resolutionY / boxPixelsY; // Total columns on grid
 int gameGrid[gameRows][gameColumns] = {};
 
 int showMenu(RenderWindow& window);
+void showWelcomeScreen(RenderWindow& window);
+void showInstructionsScreen(RenderWindow& window);
+void showLevelIntro(RenderWindow& window, int level);
 std:: string playerNameInput(RenderWindow& window);
 void displayMessage(RenderWindow& window, const std::string& message);
 void loadAndUpdateScore(string playerName, int score);
@@ -64,7 +69,7 @@ int main(){
 	int score=0;
 	 srand(time(0));
 	// Declaring RenderWindow.
-	RenderWindow window(VideoMode(resolutionX, resolutionY), "Buzz Bombers", Style::Close | Style::Titlebar);
+	RenderWindow window(VideoMode({(unsigned)resolutionX, (unsigned)resolutionY}), "Buzz Bombers", Style::Close | Style::Titlebar);
         //setting frame rate limit
         window.setFramerateLimit(60);
 	// Used to position your window on every launch. Use according to your needs.
@@ -76,17 +81,18 @@ int main(){
 	    cout << "Error: Could not load music file!" << endl;
 	}
 	bgMusic.setVolume(50);
-	bgMusic.setLoop(true);
+	bgMusic.setLooping(true);
 	bgMusic.play();
 	
+	showWelcomeScreen(window);
+	showInstructionsScreen(window);
 	std:: string playerName=playerNameInput(window);
 	while (window.isOpen()) {
 	
 	int choice=showMenu(window);
 	Clock clock;
-	Event e;
-	while (window.pollEvent(e)) {
-		if (e.type == Event::Closed) {
+	while (const std::optional event = window.pollEvent()) {
+		if (event->is<Event::Closed>()) {
 		return 0;
 		}
 	}
@@ -110,38 +116,36 @@ int main(){
 std::string playerNameInput(RenderWindow& window){
 
 	Font font;
-	font.loadFromFile("resources/fonts/OpenSans-ExtraBold.ttf");
+	font.openFromFile("resources/fonts/OpenSans-ExtraBold.ttf");
 	
-	Text promptText("Enter your Name",font, 30);
+	Text promptText(font, "Enter your Name", 30);
 	promptText.setFillColor(Color::White);
-	promptText.setPosition(resolutionX/2-3*boxPixelsX,resolutionY/2-2*boxPixelsY);
+	promptText.setPosition({(float)(resolutionX/2-3*boxPixelsX), (float)(resolutionY/2-2*boxPixelsY)});
 	
 	
-	Text inputText("",font,30);
+	Text inputText(font, "", 30);
 	inputText.setFillColor(Color::White);
-	inputText.setPosition(resolutionX/2-3*boxPixelsX,resolutionY/2);
+	inputText.setPosition({(float)(resolutionX/2-3*boxPixelsX), (float)(resolutionY/2)});
 	
 	std::string name="";
 	
-	Event event;
-	
 	while(window.isOpen()){
 	
-	while(window.pollEvent(event)){
-		if(event.type==Event::Closed){
+	while(const std::optional event = window.pollEvent()){
+		if(event->is<Event::Closed>()){
 		window.close();
 		return "";
 	}
 	
-	if(event.type==Event::TextEntered){
-	if(event.text.unicode==13){
+	if(const auto* textEntered = event->getIf<Event::TextEntered>()){
+	if(textEntered->unicode==13){
 	return name;
 	}
-	if(event.text.unicode==8 &&!name.empty()){
+	if(textEntered->unicode==8 &&!name.empty()){
 	name.pop_back();
 	}
-	else if(event.text.unicode<128){
-	name+=static_cast<char>(event.text.unicode);
+	else if(textEntered->unicode<128){
+	name+=static_cast<char>(textEntered->unicode);
 	}
 	
 	inputText.setString(name);
@@ -252,9 +256,8 @@ void displayHighScore(sf::RenderWindow& window){
 	file.close();
 	
 	sf::Font font;
-	font.loadFromFile("resources/fonts/OpenSans-ExtraBold.ttf");
-	sf::Text text;
-	text.setFont(font);
+	font.openFromFile("resources/fonts/OpenSans-ExtraBold.ttf");
+	sf::Text text(font);
 	text.setCharacterSize(24);
 	text.setFillColor(Color::White);
 	
@@ -265,21 +268,20 @@ void displayHighScore(sf::RenderWindow& window){
 	
 	string scoreText= names[i]+"---"+ to_string(scores[i]);
 	text.setString(scoreText);
-	text.setPosition(100,positionY);
+	text.setPosition({100.f, positionY});
 	window.draw(text);
 	window.display();
 	positionY+=40;
 	
 	}
 	
-	sf::Event event;
 		while(!backToMenu&&window.isOpen()){
-		 while(window.pollEvent(event)){
-			if(event.type==sf::Event::Closed){
+		 while(const std::optional event = window.pollEvent()){
+			if(event->is<sf::Event::Closed>()){
 			window.close();
 			return;
 			}
-			if(event.type==sf::Event::KeyPressed){
+			if(event->is<sf::Event::KeyPressed>()){
 			backToMenu=true;
 			}		
 		   }	
@@ -293,6 +295,217 @@ void displayHighScore(sf::RenderWindow& window){
 		
 ////////////////////////////////////////////////////MENU////////////////////////////////////////////////////////
 	
+
+
+/////////////////////////////////////////////// LEVEL INTRO SCREEN //////////////////////////////////////////////
+void showLevelIntro(RenderWindow& window, int level){
+	Font font;
+	if(!font.openFromFile("resources/fonts/OpenSans-ExtraBold.ttf")){
+		cout << "Error: could not load font" << endl;
+	}
+
+	// Bee decoration
+	Texture beeTex;
+	beeTex.loadFromFile("resources/Textures/Regular_bee.png");
+	Sprite beeSprite(beeTex);
+	beeSprite.setTextureRect(IntRect({0, 0}, {boxPixelsX, boxPixelsY}));
+	beeSprite.setScale({2.5f, 2.5f});
+
+	// "LEVEL N" big neon title
+	Text glow(font, "LEVEL " + std::to_string(level), 90);
+	glow.setFillColor(Color(255, 0, 150, 70));
+	Text title(font, "LEVEL " + std::to_string(level), 90);
+	title.setFillColor(Color(0, 255, 200));
+	title.setOutlineColor(Color(255, 0, 150));
+	title.setOutlineThickness(4.f);
+	FloatRect tb = title.getLocalBounds();
+	float tx = (resolutionX - tb.size.x)/2.f;
+	title.setPosition({tx, 230.f});
+
+	// A little flavor line per level
+	std::string flavor;
+	if(level==1) flavor = "The swarm approaches...";
+	else if(level==2) flavor = "Faster bees incoming!";
+	else flavor = "Final challenge!";
+	Text sub(font, flavor, 28);
+	sub.setFillColor(Color(255, 230, 0));
+	FloatRect sbf = sub.getLocalBounds();
+	sub.setPosition({(resolutionX - sbf.size.x)/2.f, 350.f});
+
+	Text getReady(font, "GET READY", 34);
+	getReady.setFillColor(Color::White);
+	FloatRect gb = getReady.getLocalBounds();
+	getReady.setPosition({(resolutionX - gb.size.x)/2.f, 440.f});
+
+	Clock clock;
+	Clock pulseClock;
+	while(window.isOpen() && clock.getElapsedTime().asSeconds() < 2.2f){
+		while(const std::optional event = window.pollEvent()){
+			if(event->is<Event::Closed>()){ window.close(); return; }
+		}
+		float t = pulseClock.getElapsedTime().asSeconds();
+
+		// pulsing glow behind title
+		float g = 1.f + 0.05f * sin(t * 3.f);
+		glow.setScale({g, g});
+		FloatRect gbb = glow.getLocalBounds();
+		glow.setPosition({(resolutionX - gbb.size.x*g)/2.f, 230.f - 8});
+
+		// two bees drifting in from the sides
+		float off = t * 120.f;
+		beeSprite.setPosition({100.f + off, 120.f});
+		window.clear(Color(10, 5, 25));
+		window.draw(glow);
+		window.draw(title);
+		window.draw(sub);
+		int alpha = (int)(155 + 100 * sin(t * 4.f));
+		getReady.setFillColor(Color(255,255,255,alpha));
+		window.draw(getReady);
+		window.draw(beeSprite);
+		beeSprite.setPosition({resolutionX - 160.f - off, 120.f});
+		window.draw(beeSprite);
+		window.display();
+	}
+}
+
+/////////////////////////////////////////////// WELCOME SCREEN //////////////////////////////////////////////////
+// A neon-retro title screen: dark background, glowing "BUZZ BOMBERS" title, a bee mascot,
+// and a pulsing "PRESS ENTER" prompt.
+void showWelcomeScreen(RenderWindow& window){
+	Font font;
+	if(!font.openFromFile("resources/fonts/OpenSans-ExtraBold.ttf")){
+		cout << "Error: could not load font" << endl;
+	}
+
+	// Bee mascot decoration
+	Texture beeTex;
+	beeTex.loadFromFile("resources/Textures/Regular_bee.png");
+	Sprite beeSprite(beeTex);
+	beeSprite.setTextureRect(IntRect({0, 0}, {boxPixelsX, boxPixelsY}));
+	beeSprite.setScale({3.f, 3.f});
+	beeSprite.setPosition({(float)(resolutionX/2 - boxPixelsX*1.5f), 120.f});
+
+	// --- Glowing title: draw the same text several times, offset & dim, then bright on top ---
+	Text titleGlow(font, "BUZZ BOMBERS", 72);
+	titleGlow.setFillColor(Color(255, 0, 150, 60));   // pink glow, translucent
+	Text title(font, "BUZZ BOMBERS", 72);
+	title.setFillColor(Color(0, 255, 200));           // bright neon cyan
+	title.setOutlineColor(Color(255, 0, 150));        // pink outline
+	title.setOutlineThickness(3.f);
+	// center it
+	FloatRect tb = title.getLocalBounds();
+	float titleX = (resolutionX - tb.size.x)/2.f;
+	float titleY = 240.f;
+	title.setPosition({titleX, titleY});
+
+	Text subtitle(font, "The Bee-Blasting Arcade Classic", 24);
+	subtitle.setFillColor(Color(255, 230, 0));        // neon yellow
+	FloatRect sb = subtitle.getLocalBounds();
+	subtitle.setPosition({(resolutionX - sb.size.x)/2.f, 340.f});
+
+	Text prompt(font, "PRESS ENTER TO START", 30);
+	prompt.setFillColor(Color::White);
+	FloatRect pb = prompt.getLocalBounds();
+	prompt.setPosition({(resolutionX - pb.size.x)/2.f, 480.f});
+
+	Clock pulseClock;
+	while(window.isOpen()){
+		while(const std::optional event = window.pollEvent()){
+			if(event->is<Event::Closed>()){
+				window.close();
+				return;
+			}
+			if(const auto* key = event->getIf<Event::KeyPressed>()){
+				if(key->code == Keyboard::Key::Enter) return;
+			}
+		}
+
+		// pulse the prompt's brightness with a sine wave
+		float t = pulseClock.getElapsedTime().asSeconds();
+		int alpha = (int)(155 + 100 * sin(t * 3.f));
+		prompt.setFillColor(Color(255, 255, 255, alpha));
+
+		// gentle glow scaling behind the title
+		float g = 1.f + 0.04f * sin(t * 2.f);
+		titleGlow.setScale({g, g});
+		FloatRect gb = titleGlow.getLocalBounds();
+		titleGlow.setPosition({(resolutionX - gb.size.x * g)/2.f, titleY - 6});
+
+		window.clear(Color(10, 5, 25));   // deep purple-black
+		window.draw(titleGlow);
+		window.draw(title);
+		window.draw(subtitle);
+		window.draw(beeSprite);
+		window.draw(prompt);
+		window.display();
+	}
+}
+
+/////////////////////////////////////////////// INSTRUCTIONS SCREEN /////////////////////////////////////////////
+void showInstructionsScreen(RenderWindow& window){
+	Font font;
+	if(!font.openFromFile("resources/fonts/OpenSans-ExtraBold.ttf")){
+		cout << "Error: could not load font" << endl;
+	}
+
+	Text heading(font, "HOW TO PLAY", 54);
+	heading.setFillColor(Color(0, 255, 200));
+	heading.setOutlineColor(Color(255, 0, 150));
+	heading.setOutlineThickness(3.f);
+	FloatRect hb = heading.getLocalBounds();
+	heading.setPosition({(resolutionX - hb.size.x)/2.f, 60.f});
+
+	// Instruction lines
+	const int LINES = 6;
+	std::string lines[LINES] = {
+		"MOVE:    Left / Right Arrow Keys",
+		"SHOOT:   Spacebar (uses spray)",
+		"GOAL:    Blast the bees before they",
+		"         swarm the flowers!",
+		"WATCH:   You have limited spray cans.",
+		"JUMP:    You can hop over flowers."
+	};
+
+	Text lineText[LINES] = {
+		Text(font), Text(font), Text(font), Text(font), Text(font), Text(font)
+	};
+	for(int i=0; i<LINES; i++){
+		lineText[i].setString(lines[i]);
+		lineText[i].setCharacterSize(26);
+		lineText[i].setFillColor(i % 2 == 0 ? Color(255, 230, 0) : Color(0, 220, 255));
+		lineText[i].setPosition({140.f, 170.f + i * 50.f});
+	}
+
+	Text prompt(font, "PRESS ENTER TO CONTINUE", 28);
+	prompt.setFillColor(Color::White);
+	FloatRect pb = prompt.getLocalBounds();
+	prompt.setPosition({(resolutionX - pb.size.x)/2.f, 500.f});
+
+	Clock pulseClock;
+	while(window.isOpen()){
+		while(const std::optional event = window.pollEvent()){
+			if(event->is<Event::Closed>()){
+				window.close();
+				return;
+			}
+			if(const auto* key = event->getIf<Event::KeyPressed>()){
+				if(key->code == Keyboard::Key::Enter) return;
+			}
+		}
+
+		float t = pulseClock.getElapsedTime().asSeconds();
+		int alpha = (int)(155 + 100 * sin(t * 3.f));
+		prompt.setFillColor(Color(255, 255, 255, alpha));
+
+		window.clear(Color(10, 5, 25));
+		window.draw(heading);
+		for(int i=0; i<LINES; i++) window.draw(lineText[i]);
+		window.draw(prompt);
+		window.display();
+	}
+}
+
+
 int showMenu(sf::RenderWindow& window){
 
 
@@ -308,35 +521,46 @@ std::string options[menuOptions]={
 	
 	
 	 Font font;
-	font.loadFromFile("resources/fonts/OpenSans-ExtraBold.ttf");
+	font.openFromFile("resources/fonts/OpenSans-ExtraBold.ttf");
 	
-	Text menuText[menuOptions];
+	Text menuText[menuOptions] = { Text(font), Text(font), Text(font), Text(font), Text(font) };
 	for(int i=0; i< menuOptions;i++){
 	
-	menuText[i].setFont(font);
 	menuText[i].setString(options[i]);
-	menuText[i].setCharacterSize(24);
-	menuText[i].setPosition(100,100+i*50);
-
+	menuText[i].setCharacterSize(32);
+	FloatRect mb = menuText[i].getLocalBounds();
+	menuText[i].setPosition({(resolutionX - mb.size.x)/2.f, (float)(200+i*60)});
 	}
-	
+
+	// Neon menu title
+	Text menuTitle(font, "BUZZ BOMBERS", 60);
+	menuTitle.setFillColor(Color(0, 255, 200));
+	menuTitle.setOutlineColor(Color(255, 0, 150));
+	menuTitle.setOutlineThickness(3.f);
+	FloatRect mtb = menuTitle.getLocalBounds();
+	menuTitle.setPosition({(resolutionX - mtb.size.x)/2.f, 70.f});
+
+	Text hint(font, "Use UP / DOWN arrows, ENTER to select", 20);
+	hint.setFillColor(Color(150, 150, 180));
+	FloatRect hnb = hint.getLocalBounds();
+	hint.setPosition({(resolutionX - hnb.size.x)/2.f, 560.f});
+
 	int currentSelection=0;
 	
 	while (window.isOpen()) {
-        sf::Event event;
-        while (window.pollEvent(event)){
-            if (event.type == sf::Event::Closed){
+        while (const std::optional event = window.pollEvent()){
+            if (event->is<sf::Event::Closed>()){
                 window.close();
                 return 5; // Exit option
             }
-            if (event.type==sf::Event::KeyPressed) {
-                if (event.key.code==sf::Keyboard::Up) {
+            if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+                if (keyPressed->code==sf::Keyboard::Key::Up) {
                     currentSelection=(currentSelection - 1 + menuOptions) % menuOptions;  // Move up
                 }
-                if (event.key.code== sf::Keyboard::Down) {
+                if (keyPressed->code== sf::Keyboard::Key::Down) {
                     currentSelection=(currentSelection + 1) % menuOptions;  // Move down
                 }
-                if (event.key.code == sf::Keyboard::Enter) {
+                if (keyPressed->code == sf::Keyboard::Key::Enter) {
                     return currentSelection + 1;  // Return the selected option (1-based index)
                 }
             }
@@ -345,14 +569,19 @@ std::string options[menuOptions]={
         // Update text colors based on the current selection
         for (int i = 0; i < menuOptions; i++) {
             if (i == currentSelection) {
-                menuText[i].setFillColor(sf::Color::Yellow);  // Highlight the selected option
+                menuText[i].setFillColor(sf::Color(255, 230, 0));      // neon yellow highlight
+                menuText[i].setOutlineColor(sf::Color(255, 100, 0));   // orange glow
+                menuText[i].setOutlineThickness(2.f);
             } else {
-                menuText[i].setFillColor(sf::Color::White);   // Other options are white
+                menuText[i].setFillColor(sf::Color(0, 200, 255));      // neon blue
+                menuText[i].setOutlineThickness(0.f);
             }
         }
 
         // Draw the Menu
-        window.clear();
+        window.clear(sf::Color(10, 5, 25));   // deep purple-black
+        window.draw(menuTitle);
+        window.draw(hint);
         for (int i = 0; i < menuOptions; i++) {
             window.draw(menuText[i]);
         }
@@ -366,14 +595,13 @@ std::string options[menuOptions]={
 void displayMessage(RenderWindow& window, const std:: string& message){
 
 	Font font;
-	font.loadFromFile("resources/fonts/OpenSans-ExtraBold.ttf");
+	font.openFromFile("resources/fonts/OpenSans-ExtraBold.ttf");
 	
-	Text text;
+	Text text(font);
 	
-	text.setFont(font);
 	text.setString(message);
 	text.setCharacterSize(48);
-	text.setPosition(resolutionX/2 -100, resolutionY/2-50);	
+	text.setPosition({(float)(resolutionX/2 -100), (float)(resolutionY/2-50)});	
 
 
 	Clock clock;
@@ -391,14 +619,12 @@ void displayMessage(RenderWindow& window, const std:: string& message){
 void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& score,string playerName, bool& level1, bool& level2, bool& level3){
 
 	
-	std::string levelMessage="Level"+ std::to_string(level);
-	displayMessage(window, levelMessage);
+	showLevelIntro(window, level);
 	float player_x = (gameRows / 2) * boxPixelsX;
-	float player_y =resolutionY-3*boxPixelsY;
+	float player_y =(gameColumns - 4) * boxPixelsY;
 	Texture playerTexture;
-	Sprite playerSprite;
 	playerTexture.loadFromFile("resources/Textures/spray.png");
-	playerSprite.setTexture(playerTexture);
+	Sprite playerSprite(playerTexture);
 	 
 
 	// Initializing Bullet and Bullet Sprites
@@ -409,11 +635,10 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	bool bullet_exists = false;
 	Clock bulletClock;
 	Texture bulletTexture;
-	Sprite bulletSprite;
 	bulletTexture.loadFromFile("resources/Textures/bullet.png");
-	bulletSprite.setTexture(bulletTexture);
-	bulletSprite.setScale(3, 3);
-	bulletSprite.setTextureRect(sf::IntRect(0, 0, boxPixelsX, boxPixelsY));
+	Sprite bulletSprite(bulletTexture);
+	bulletSprite.setScale({3.f, 3.f});
+	bulletSprite.setTextureRect(sf::IntRect({0, 0}, {boxPixelsX, boxPixelsY}));
 
 	
 	//initialization of spray cans
@@ -421,33 +646,29 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	int currentSprays= spraysPerCan;
 	int cans=3;
 	Texture cansTexture;
-	Sprite cansSprite;
 	cansTexture.loadFromFile("resources/Textures/spray.png");
-	cansSprite.setTexture(cansTexture);
-	cansSprite.setScale(0.5f,0.5f);
+	Sprite cansSprite(cansTexture);
+	cansSprite.setScale({0.5f, 0.5f});
 
 
 	//For printing no of cans
 	Font font;
-	if(!font.loadFromFile("resources/fonts/OpenSans-ExtraBold.ttf")){
+	if(!font.openFromFile("resources/fonts/OpenSans-ExtraBold.ttf")){
 	cout<<"error loading";
 	}
 
-	Text spraysText;
-	spraysText.setFont(font);
+	Text spraysText(font);
 	spraysText.setCharacterSize(16);
 	spraysText.setFillColor(Color::White);
-	spraysText.setPosition(10,10);
-	Text cansText;
-	cansText.setFont(font);
+	spraysText.setPosition({10.f, 10.f});
+	Text cansText(font);
 	cansText.setCharacterSize(16);
 	cansText.setFillColor(Color::White);
-	cansText.setPosition(10,40);
-	Text scoreText;
-	scoreText.setFont(font);
+	cansText.setPosition({10.f, 40.f});
+	Text scoreText(font);
 	scoreText.setCharacterSize(16);
 	scoreText.setFillColor(Color::White);
-	scoreText.setPosition(10,70);
+	scoreText.setPosition({10.f, 70.f});
 
 	//initialization of bees
 	int bee_num=20;
@@ -463,10 +684,9 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	float bee_pauseTimer[size]={0};
 	double pauseProb=0.000001f;
 	Texture beeTexture;
-	Sprite beeSprite;
 	beeTexture.loadFromFile("resources/Textures/Regular_bee.png");
-	beeSprite.setTexture(beeTexture);
-	beeSprite.setTextureRect(IntRect(0, 0, boxPixelsX, boxPixelsY));
+	Sprite beeSprite(beeTexture);
+	beeSprite.setTextureRect(IntRect({0, 0}, {boxPixelsX, boxPixelsY}));
 	int beesKilled=0;
 	
 	//initialization of fast bees
@@ -479,10 +699,9 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	bool fastbee_active[size]={true};
 	int currentFastBeeCount=0;
 	Texture fastbeeTexture;
-	Sprite fastbeeSprite;
 	fastbeeTexture.loadFromFile("resources/Textures/Fast_bee.png");
-	fastbeeSprite.setTexture(fastbeeTexture);
-	fastbeeSprite.setTextureRect(IntRect(0, 0, boxPixelsX, boxPixelsY));
+	Sprite fastbeeSprite(fastbeeTexture);
+	fastbeeSprite.setTextureRect(IntRect({0, 0}, {boxPixelsX, boxPixelsY}));
 
 
 	//initialization of honey combs
@@ -491,10 +710,9 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	float honeycomb_y[maxHoneycombs];
 	bool activeHoneycombs[maxHoneycombs]={false};
 	Texture honeycombTexture;
-	Sprite honeycombSprite;
 	honeycombTexture.loadFromFile("resources/Textures/honeycomb.png");
-	honeycombSprite.setTexture(honeycombTexture);
-	honeycombSprite.setScale(0.9f,0.9f);
+	Sprite honeycombSprite(honeycombTexture);
+	honeycombSprite.setScale({0.9f, 0.9f});
 	
 	
 	//initialization of red honeycombs
@@ -503,10 +721,9 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	float redhoneycomb_y[maxRedHoneycombs];
 	bool activeRedHoneycombs[maxRedHoneycombs]={false};
 	Texture redhoneycombTexture;
-	Sprite redhoneycombSprite;
 	redhoneycombTexture.loadFromFile("resources/Textures/honeycomb_red.png");
-	redhoneycombSprite.setTexture(redhoneycombTexture);
-	redhoneycombSprite.setScale(0.9f,0.9f);
+	Sprite redhoneycombSprite(redhoneycombTexture);
+	redhoneycombSprite.setScale({0.9f, 0.9f});
 
 	//initialization of flowers
 	int maxFlowers=1000;
@@ -515,10 +732,9 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	bool flower_active[maxFlowers]={false};
 	int flowercount=0;
 	Texture flowerTexture;
-	Sprite flowerSprite;
 	flowerTexture.loadFromFile("resources/Textures/obstacles.png");
-	flowerSprite.setTexture(flowerTexture);
-	flowerSprite.setScale(0.9f,0.9f);
+	Sprite flowerSprite(flowerTexture);
+	flowerSprite.setScale({0.9f, 0.9f});
 
 	for(int i=0; i<maxFlowers;i++){
 	
@@ -535,10 +751,9 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	bool centerflower_active[maxCenterFlowers]={false};
 	int centerflowercount=0;
 	Texture centerflowerTexture;
-	Sprite centerflowerSprite;
+	Sprite centerflowerSprite(flowerTexture);
 	centerflowerTexture.loadFromFile("resources/Textures/obstacles.png");
-	centerflowerSprite.setTexture(flowerTexture);
-	centerflowerSprite.setScale(0.9f,0.9f);
+	centerflowerSprite.setScale({0.9f, 0.9f});
 
 	for(int i=0; i<maxCenterFlowers;i++){
 	
@@ -560,15 +775,14 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	bool isMovingRight=true;
 	bool isMovingUp=true;	
 	Texture hummingbirdTexture;
-	Sprite hummingbirdSprite;
 	hummingbirdTexture.loadFromFile("resources/Textures/bird.png");
-	hummingbirdSprite.setTexture(hummingbirdTexture);
-	hummingbirdSprite.setScale(0.9f,0.9f);
+	Sprite hummingbirdSprite(hummingbirdTexture);
+	hummingbirdSprite.setScale({0.9f, 0.9f});
 
 	
 	// The ground on which player moves
 	RectangleShape groundRectangle(Vector2f(960, 64));
-	groundRectangle.setPosition(0, (gameColumns - 2) * boxPixelsY);
+	groundRectangle.setPosition({0.f, (float)((gameColumns - 2) * boxPixelsY)});
 	groundRectangle.setFillColor(Color::Green);
 	
 ////////////////////////////////////////////LEVEL 1//////////////////////////////////////////////////////////////	
@@ -628,24 +842,23 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	
 	while (!levelComplete && window.isOpen()) {
 	Clock clock;
-	Event e;
-	while (window.pollEvent(e)) {
-		if (e.type == Event::Closed) {
+	while (const std::optional event = window.pollEvent()) {
+		if (event->is<Event::Closed>()) {
 		 window.close();
 		}
 	}
-	if(Keyboard::isKeyPressed(Keyboard::Left)&& player_x>0){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Left)&& player_x>0){
   	float next_x=player_x-15;
   	movePlayer(player_x,player_y,flower_x,flower_y,flower_active,flowercount,next_x,centerflower_x, centerflower_y,centerflower_active,centerflowercount);
 	}
 	
-	if(Keyboard::isKeyPressed(Keyboard::Right)&& player_x< resolutionX- boxPixelsX){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Right)&& player_x< resolutionX- boxPixelsX){
 	   float next_x=player_x+15;
 	   movePlayer(player_x,player_y,flower_x,flower_y,flower_active,flowercount,next_x,centerflower_x, centerflower_y,centerflower_active,centerflowercount);
 	}
         
         //Bullet launch
-	if(Keyboard::isKeyPressed(Keyboard::Space) && !bullet_exists){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Space) && !bullet_exists){
 		if(useSpray(currentSprays,cans,spraysPerCan)){
 		bullet_exists=true;
 		bullet_x=player_x+15;
@@ -689,7 +902,7 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	moveBee(bee_x,bee_y,bee_moves,bee_speed,bee_num,activeHoneycombs,  honeycomb_x, honeycomb_y, maxHoneycombs,bee_active,flower_x,flower_y,flower_active,flowercount,maxFlowers,firstBeeReachedBottom, bee_pauseTimer,pauseProb,centerflower_x,centerflower_y,centerflower_active,centerflowercount,maxCenterFlowers, activeRedHoneycombs,redhoneycomb_x,redhoneycomb_y,maxRedHoneycombs,beesKilled);
 	
 	for(int i=0;i<bee_num;i++){
-	beeSprite.setPosition(bee_x[i],bee_y[i]);
+	beeSprite.setPosition({bee_x[i], bee_y[i]});
 	window.draw(beeSprite);
 	}
 
@@ -720,7 +933,7 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	for(int i=0;i<bee_num;i++){
 		if(honeycomb_x[i]!=-700 &&activeHoneycombs[i]==true)
 		{
-		honeycombSprite.setPosition(honeycomb_x[i],honeycomb_y[i]);
+		honeycombSprite.setPosition({honeycomb_x[i], honeycomb_y[i]});
 		window.draw(honeycombSprite);
 		}
          }
@@ -857,24 +1070,23 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	
 	while (window.isOpen()) {
 	Clock clock;
-	Event e;
-	while (window.pollEvent(e)) {
-		if (e.type == Event::Closed) {
+	while (const std::optional event = window.pollEvent()) {
+		if (event->is<Event::Closed>()) {
 		 window.close();
 		}
 	}
-	if(Keyboard::isKeyPressed(Keyboard::Left)&& player_x>0){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Left)&& player_x>0){
   	float next_x=player_x-15;
   	movePlayer(player_x,player_y,flower_x,flower_y,flower_active,flowercount,next_x,centerflower_x, centerflower_y,centerflower_active,centerflowercount);
 	}
 	
-	if(Keyboard::isKeyPressed(Keyboard::Right)&& player_x< resolutionX- boxPixelsX){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Right)&& player_x< resolutionX- boxPixelsX){
 	   float next_x=player_x+15;
 	  movePlayer(player_x,player_y,flower_x,flower_y,flower_active,flowercount,next_x,centerflower_x, centerflower_y,centerflower_active,centerflowercount);
 	}
         
         //Bullet launch
-	if(Keyboard::isKeyPressed(Keyboard::Space) && !bullet_exists){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Space) && !bullet_exists){
 		if(useSpray(currentSprays,cans,spraysPerCan)){
 		bullet_exists=true;
 		bullet_x=player_x+15;
@@ -918,7 +1130,7 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	moveBee(bee_x,bee_y,bee_moves,bee_speed,bee_num,activeHoneycombs,  honeycomb_x, honeycomb_y, maxHoneycombs,bee_active,flower_x,flower_y,flower_active,flowercount,maxFlowers,firstBeeReachedBottom, bee_pauseTimer,pauseProb,centerflower_x,centerflower_y,centerflower_active,centerflowercount,maxCenterFlowers, activeRedHoneycombs,redhoneycomb_x,redhoneycomb_y,maxRedHoneycombs,beesKilled);
 	
 	for(int i=0;i<bee_num;i++){
-	beeSprite.setPosition(bee_x[i],bee_y[i]);
+	beeSprite.setPosition({bee_x[i], bee_y[i]});
 	window.draw(beeSprite);
 	}
 
@@ -948,7 +1160,7 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	for(int i=0;i<bee_num;i++){
 		if(honeycomb_x[i]!=-700 &&activeHoneycombs[i]==true)
 		{
-		honeycombSprite.setPosition(honeycomb_x[i],honeycomb_y[i]);
+		honeycombSprite.setPosition({honeycomb_x[i], honeycomb_y[i]});
 		window.draw(honeycombSprite);
 		}
          }
@@ -981,7 +1193,7 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	
 	for(int i=0;i<fastbee_num;i++){
 	if(fastbee_active[i]){
-	fastbeeSprite.setPosition(fastbee_x[i],fastbee_y[i]);
+	fastbeeSprite.setPosition({fastbee_x[i], fastbee_y[i]});
 	window.draw(fastbeeSprite);
 	}
 	}
@@ -1025,7 +1237,7 @@ void loadLevel(sf::RenderWindow& window, int level, bool& levelComplete, int& sc
 	for(int i=0;i<fastbee_num;i++){
 		if(activeRedHoneycombs[i]==true)
 		{
-		redhoneycombSprite.setPosition(redhoneycomb_x[i],redhoneycomb_y[i]);
+		redhoneycombSprite.setPosition({redhoneycomb_x[i], redhoneycomb_y[i]});
 		window.draw(redhoneycombSprite);
 		}
          }
@@ -1152,24 +1364,23 @@ if(level==3){
 	
 	while (window.isOpen()) {
 	Clock clock;
-	Event e;
-	while (window.pollEvent(e)) {
-		if (e.type == Event::Closed) {
+	while (const std::optional event = window.pollEvent()) {
+		if (event->is<Event::Closed>()) {
 		 window.close();
 		}
 	}
-	if(Keyboard::isKeyPressed(Keyboard::Left)&& player_x>0){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Left)&& player_x>0){
   	float next_x=player_x-15;
   	movePlayer(player_x,player_y,flower_x,flower_y,flower_active,flowercount,next_x,centerflower_x, centerflower_y,centerflower_active,centerflowercount);
 	}
 	
-	if(Keyboard::isKeyPressed(Keyboard::Right)&& player_x< resolutionX- boxPixelsX){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Right)&& player_x< resolutionX- boxPixelsX){
 	   float next_x=player_x+15;
 	   movePlayer(player_x,player_y,flower_x,flower_y,flower_active,flowercount,next_x,centerflower_x, centerflower_y,centerflower_active,centerflowercount);
 	}
         
         //Bullet launch
-	if(Keyboard::isKeyPressed(Keyboard::Space) && !bullet_exists){
+	if(Keyboard::isKeyPressed(Keyboard::Key::Space) && !bullet_exists){
 		if(useSpray(currentSprays,cans,spraysPerCan)){
 		bullet_exists=true;
 		bullet_x=player_x+15;
@@ -1213,7 +1424,7 @@ if(level==3){
 	moveBee(bee_x,bee_y,bee_moves,bee_speed,bee_num,activeHoneycombs,  honeycomb_x, honeycomb_y, maxHoneycombs,bee_active,flower_x,flower_y,flower_active,flowercount,maxFlowers,firstBeeReachedBottom, bee_pauseTimer,pauseProb,centerflower_x,centerflower_y,centerflower_active,centerflowercount,maxCenterFlowers, activeRedHoneycombs,redhoneycomb_x,redhoneycomb_y,maxRedHoneycombs,beesKilled);
 	
 	for(int i=0;i<bee_num;i++){
-	beeSprite.setPosition(bee_x[i],bee_y[i]);
+	beeSprite.setPosition({bee_x[i], bee_y[i]});
 	window.draw(beeSprite);
 	}
 
@@ -1245,7 +1456,7 @@ if(level==3){
 	for(int i=0;i<bee_num;i++){
 		if(honeycomb_x[i]!=-700 &&activeHoneycombs[i]==true)
 		{
-		honeycombSprite.setPosition(honeycomb_x[i],honeycomb_y[i]);
+		honeycombSprite.setPosition({honeycomb_x[i], honeycomb_y[i]});
 		window.draw(honeycombSprite);
 		}
          }
@@ -1278,7 +1489,7 @@ if(level==3){
 	
 	for(int i=0;i<fastbee_num;i++){
 	if(fastbee_active[i]){
-	fastbeeSprite.setPosition(fastbee_x[i],fastbee_y[i]);
+	fastbeeSprite.setPosition({fastbee_x[i], fastbee_y[i]});
 	window.draw(fastbeeSprite);
 	}
 	}
@@ -1322,7 +1533,7 @@ if(level==3){
 	for(int i=0;i<fastbee_num;i++){
 		if(activeRedHoneycombs[i]==true)
 		{
-		redhoneycombSprite.setPosition(redhoneycomb_x[i],redhoneycomb_y[i]);
+		redhoneycombSprite.setPosition({redhoneycomb_x[i], redhoneycomb_y[i]});
 		window.draw(redhoneycombSprite);
 		}
          }
@@ -1398,7 +1609,7 @@ if(level==3){
 
 	
 void drawPlayer(RenderWindow& window, float& player_x, float& player_y, Sprite& playerSprite) {
-playerSprite.setPosition(player_x, (gameColumns - 4) * boxPixelsY);
+playerSprite.setPosition({player_x, player_y});
 window.draw(playerSprite);
 }
 
@@ -1415,7 +1626,7 @@ void moveBullet(float& bullet_y, bool& bullet_exists, Clock& bulletClock) {
 
 
 void drawBullet(sf::RenderWindow& window, float& bullet_x, float& bullet_y, Sprite& bulletSprite) {
-bulletSprite.setPosition(bullet_x, bullet_y);
+bulletSprite.setPosition({bullet_x, bullet_y});
 window.draw(bulletSprite);
 }
 
@@ -1489,9 +1700,8 @@ for(int i=0; i<bee_num;i++){
      	//if(bee_x[i]>=(resolutionX/2-boxPixelsX)&&bee_x[i]<=resolutionX/2&&
      	//bee_y[i]>=(resolutionY/2-boxPixelsY)&&bee_y[i]<=resolutionY/2){
      	
-     if(bee_x[i]==resolutionX/2&&bee_y[i]==resolutionY/2){	createCenterFlower(centerflower_x,centerflower_y,centerflower_active,centerflowercount,maxCenterFlowers,firstBeeReachedBottom, bee_active,bee_x[i], bee_num,bee_y[i]);
-
-     }
+     // Centerflowers removed: no longer spawn a flower when a bee crosses the centre.
+     // if(bee_x[i]==resolutionX/2&&bee_y[i]==resolutionY/2){ createCenterFlower(...); }
      
      	if(bee_y[i]>=resolutionY-2*boxPixelsY){
      	bee_active[i]=false;
@@ -1676,7 +1886,7 @@ void drawFlowers(RenderWindow& window, Sprite& flowerSprite, float flower_x[], f
 	{
 		if(flower_active[i]){
 
-		flowerSprite.setPosition(flower_x[i], flower_y[i]);
+		flowerSprite.setPosition({flower_x[i], flower_y[i]});
 		window.draw(flowerSprite);
 		}
      }
@@ -1688,7 +1898,7 @@ void drawCenterFlowers(RenderWindow& window, Sprite& centerflowerSprite, float c
 	{
 		if(centerflower_active[i]){
 
-		centerflowerSprite.setPosition(centerflower_x[i], centerflower_y[i]);
+		centerflowerSprite.setPosition({centerflower_x[i], centerflower_y[i]});
 		window.draw(centerflowerSprite);
 		}
      }
@@ -1733,12 +1943,10 @@ bool sprayMovement(float next_x, float player_y, float flower_x[], float flower_
 }
 
 void movePlayer(float& player_x, float& player_y, float flower_x[], float flower_y[], bool flower_active[], int flowercount, float next_x,float centerflower_x[], float centerflower_y[], bool centerflower_active[],int centerflowercount){
-
-if(!sprayMovement(next_x,player_y,flower_x,flower_y,flower_active,flowercount,centerflower_x,centerflower_y, centerflower_active,centerflowercount)){
-	player_x=next_x;
-}
-
-
+	// Original behaviour: flowers block movement. If nothing is in the way, move.
+	if(!sprayMovement(next_x,player_y,flower_x,flower_y,flower_active,flowercount,centerflower_x,centerflower_y, centerflower_active,centerflowercount)){
+		player_x=next_x;
+	}
 }
 
 void updateText(Text& spraysText, Text& cansText, Text& scoreText, int currentSprays, int cans, int score){
@@ -1755,7 +1963,7 @@ void drawSprayCans(RenderWindow& window, Sprite& cansSprite, int& cans)
 	float spacing= 40;
 		for(int i=0;i<cans;i++)
 		{
-		cansSprite.setPosition(10+(i* spacing),resolutionY-50);
+		cansSprite.setPosition({(float)(10+(i* spacing)), (float)(resolutionY-50)});
 		window.draw(cansSprite);
 		}
 }
@@ -1840,31 +2048,56 @@ void hummingBird(float deltaTime, float honeycomb_x[], float honeycomb_y[],bool 
 		    }	
 		}
 		else{
-		hummingbird_x+=(isMovingRight?moveSpeed:-moveSpeed);
-		hummingbird_y+=(isMovingUp?-moveSpeed:moveSpeed);
-		
-		if(hummingbird_x<=0){
-		isMovingRight=true;
-		isPaused=true;
-		pauseTimer=0.05f;
-		} 
-		else if(hummingbird_x>=resolutionX- boxPixelsX){
-		isMovingRight=false;
-		isPaused=true;
-		pauseTimer=0.05f;
-		
-		 }
-		if(hummingbird_y<=0){
-		isMovingUp=false;
-		isPaused=true;
-		pauseTimer=0.05f;
+		// --- Seek the nearest honeycomb (like the real game), with a little wander. ---
+		int   targetIdx = -1;
+		bool  targetRed = false;
+		float bestDist  = 1e9f;
+		// nearest yellow honeycomb
+		for(int i=0; i<maxHoneycombs; i++){
+			if(activeHoneycombs[i]){
+				float dx = honeycomb_x[i]-hummingbird_x;
+				float dy = honeycomb_y[i]-hummingbird_y;
+				float d  = dx*dx+dy*dy;
+				if(d<bestDist){ bestDist=d; targetIdx=i; targetRed=false; }
+			}
 		}
-		else if(hummingbird_y>=resolutionY-3*boxPixelsY)
-		{ 
-		isMovingUp=true;
-		isPaused=true;
-		pauseTimer=0.05f;
+		// nearest red honeycomb (compare against the same best distance)
+		for(int i=0; i<maxRedHoneycombs; i++){
+			if(activeRedHoneycombs[i]){
+				float dx = redhoneycomb_x[i]-hummingbird_x;
+				float dy = redhoneycomb_y[i]-hummingbird_y;
+				float d  = dx*dx+dy*dy;
+				if(d<bestDist){ bestDist=d; targetIdx=i; targetRed=true; }
+			}
 		}
+
+		if(targetIdx!=-1){
+			// steer toward the target honeycomb
+			float tx = targetRed ? redhoneycomb_x[targetIdx] : honeycomb_x[targetIdx];
+			float ty = targetRed ? redhoneycomb_y[targetIdx] : honeycomb_y[targetIdx];
+			float dx = tx - hummingbird_x;
+			float dy = ty - hummingbird_y;
+			float len = sqrt(dx*dx+dy*dy);
+			if(len<1.f) len=1.f;
+			// move toward it, plus a small random wander so it isn't a perfectly straight line
+			float wanderX = ((rand()%100)-50)/100.0f;   // -0.5..0.5
+			float wanderY = ((rand()%100)-50)/100.0f;
+			hummingbird_x += (dx/len)*moveSpeed + wanderX*moveSpeed*0.4f;
+			hummingbird_y += (dy/len)*moveSpeed + wanderY*moveSpeed*0.4f;
+		} else {
+			// no honeycombs around: drift in the old bouncing style
+			hummingbird_x+=(isMovingRight?moveSpeed:-moveSpeed);
+			hummingbird_y+=(isMovingUp?-moveSpeed:moveSpeed);
+			if(hummingbird_x<=0) isMovingRight=true;
+			else if(hummingbird_x>=resolutionX-boxPixelsX) isMovingRight=false;
+			if(hummingbird_y<=0) isMovingUp=false;
+			else if(hummingbird_y>=resolutionY-3*boxPixelsY) isMovingUp=true;
+		}
+		// keep the bird on-screen
+		if(hummingbird_x<0) hummingbird_x=0;
+		if(hummingbird_x>resolutionX-boxPixelsX) hummingbird_x=resolutionX-boxPixelsX;
+		if(hummingbird_y<0) hummingbird_y=0;
+		if(hummingbird_y>resolutionY-3*boxPixelsY) hummingbird_y=resolutionY-3*boxPixelsY;
 		
 	for(int i=0; i<maxHoneycombs; i++){
 	if(activeHoneycombs[i]&& checkCollision(hummingbird_x,hummingbird_y,honeycomb_x[i],honeycomb_y[i])){
@@ -1887,7 +2120,7 @@ void hummingBird(float deltaTime, float honeycomb_x[], float honeycomb_y[],bool 
 	
 	
 	}
-	hummingbirdSprite.setPosition(hummingbird_x,hummingbird_y);
+	hummingbirdSprite.setPosition({hummingbird_x, hummingbird_y});
 	}
      
 void drawHummingbird(RenderWindow &window, Sprite& hummingbirdSprite, bool birdExist){
@@ -1944,7 +2177,7 @@ centerflower_y[i]=-10000;
 }
 
 player_x=(gameRows/2)*boxPixelsX;
-player_y=resolutionY-3*boxPixelsY;
+player_y=(gameColumns - 4) * boxPixelsY;
 }
 
 }
@@ -1964,8 +2197,3 @@ void scoreForCans(int score,int& cans){
     }
     }
 }
-
-
-
-
-
